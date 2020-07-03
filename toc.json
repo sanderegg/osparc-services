@@ -6,7 +6,7 @@
     "key": "simcore/services/dynamic/3d-viewer",
     "name": "3d-viewer",
     "type": "dynamic",
-    "version": "3.0.2"
+    "version": "3.0.3"
   },
   "3d-viewer-gpu": {
     "description": "Paraview Web-based Visualizer",
@@ -15,7 +15,7 @@
     "key": "simcore/services/dynamic/3d-viewer-gpu",
     "name": "3d-viewer-gpu",
     "type": "dynamic",
-    "version": "3.0.2"
+    "version": "3.0.3"
   },
   "cardiac_myocyte_grandi": {
     "description": "This is the mouse cardiac myocyte electrophysiology model from Eleonora Grandi at UC Davis.",
