@@ -12,7 +12,7 @@ It brings the paraview visualizer application as an example of how easy one can 
 4. open a terminal (preferably bash)
 5. Not necessary in dev mode anymore as it is done automatically: execute `curl -i -X POST localhost:8777/setport -d "port=8777" -d "hostname=localhost"` in the terminal (this will start the paraviewweb visualizer app)
 6. execute `curl -i -X POST localhost:8777/visualizer/retrieve` in the terminal (this will make the simcore paraviewweb download the data from the local S3 storage)
-7. open browser at [localhost:8777/visualizer](localhost:8777/visualizer)
+7. open browser at [localhost:80/x/12345/](localhost:80/x/12345/)
 
 ## production
 
