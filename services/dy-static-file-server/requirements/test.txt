@@ -20,14 +20,14 @@ charset-normalizer==2.0.4
     # via requests
 click==8.0.1
     # via cookiecutter
-cookiecutter==1.7.3
+cookiecutter==2.1.1
     # via pytest-cookies
 coverage==5.5
     # via
-    #   -r requirements.in
+    #   -r test.in
     #   pytest-cov
 docker==5.0.2
-    # via -r requirements.in
+    # via -r test.in
 idna==3.2
     # via requests
 iniconfig==1.1.1
@@ -39,7 +39,7 @@ jinja2==3.0.1
 jinja2-time==0.2.0
     # via cookiecutter
 jsonschema==3.2.0
-    # via -r requirements.in
+    # via -r test.in
 markupsafe==2.0.1
     # via jinja2
 packaging==21.0
@@ -48,8 +48,6 @@ packaging==21.0
     #   pytest-sugar
 pluggy==1.0.0
     # via pytest
-poyo==0.5.0
-    # via cookiecutter
 py==1.10.0
     # via pytest
 pyparsing==2.4.7
@@ -58,35 +56,36 @@ pyrsistent==0.18.0
     # via jsonschema
 pytest==6.2.5
     # via
-    #   -r requirements.in
+    #   -r test.in
     #   pytest-cookies
     #   pytest-cov
     #   pytest-instafail
     #   pytest-mock
     #   pytest-sugar
 pytest-cookies==0.6.1
-    # via -r requirements.in
+    # via -r test.in
 pytest-cov==2.12.1
-    # via -r requirements.in
+    # via -r test.in
 pytest-instafail==0.4.2
-    # via -r requirements.in
+    # via -r test.in
 pytest-mock==3.6.1
-    # via -r requirements.in
+    # via -r test.in
 pytest-sugar==0.9.4
-    # via -r requirements.in
+    # via -r test.in
 python-dateutil==2.8.2
     # via arrow
 python-slugify==5.0.2
     # via cookiecutter
 pyyaml==5.4.1
-    # via -r requirements.in
+    # via
+    #   -r test.in
+    #   cookiecutter
 requests==2.26.0
     # via
     #   cookiecutter
     #   docker
 six==1.16.0
     # via
-    #   cookiecutter
     #   jsonschema
     #   python-dateutil
 termcolor==1.1.0
