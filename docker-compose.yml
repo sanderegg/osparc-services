@@ -1,0 +1,39 @@
+version: '3.7'
+services:
+  3d-viewer-gpu:
+    build:
+      context: .
+      dockerfile: .osparc/3d-viewer-gpu/Dockerfile
+      args:
+        BASE_IMAGE: kitware/paraviewweb:pv-v5.6.0-egl
+        VISUALIZER_VERSION: v3.1.6
+      labels:
+        io.simcore.name: '{"name":"3d-viewer-gpu"}'
+        io.simcore.description: '{"description":"Paraview Web-based Visualizer"}'
+        io.simcore.key: '{"key":"simcore/services/dynamic/3d-viewer-gpu"}'
+        io.simcore.version: '{"version":"3.0.5"}'
+        io.simcore.integration-version: '{"integration-version":"2.0.0"}'
+        io.simcore.type: '{"type":"dynamic"}'
+        io.simcore.authors: '{"authors":[{"name":"Sylvain Anderegg","email":"anderegg@itis.swiss","affiliation":"IT''IS
+          Foundation"},{"name":"Dustin Kaiser","email":"kaiser@itis.swiss","affiliation":"IT''IS
+          Foundation"}]}'
+        io.simcore.contact: '{"contact":"anderegg@itis.swiss"}'
+        io.simcore.inputs: '{"inputs":{"A":{"displayOrder":1.0,"label":"A","description":"Any
+          paraview compatible dataset. 1 dataset or N dataset compressed in a zip
+          file.","type":"data:*/*"},"B":{"displayOrder":1.0,"label":"B","description":"Any
+          paraview compatible dataset. 1 dataset or N dataset compressed in a zip
+          file.","type":"data:*/*"}}}'
+        io.simcore.outputs: '{"outputs":{}}'
+        io.simcore.boot-options: '{"boot-options":{"boot_mode":{"label":"Boot mode","description":"Boot
+          mode","default":"0","items":{"0":{"label":"default","description":"default"},"1":{"label":"3DAnatomical","description":"Preload
+          3DAnatomical data"},"2":{"label":"3DEM","description":"Preload 3DEM data"},"3":{"label":"NeurofaunaRat","description":"Preload
+          NeurofaunaRat data"}}}}}'
+        org.label-schema.build-date: 2025-06-12T08:10:48+0000
+        org.label-schema.schema-version: '1.0'
+        org.label-schema.vcs-ref: 231d2479293208cb1c4a2b435453355fb24f27ba
+        org.label-schema.vcs-url: git@github.com:mrnicegyu11/osparc-services.git
+        simcore.service.paths-mapping: '{"inputs_path":"/data","outputs_path":"/home/scu/output","state_paths":[]}'
+        simcore.service.settings: '[{"name":"ports","type":"int","value":80},{"name":"constraints","type":"string","value":["node.platform.os
+          == linux"]},{"name":"Resources","type":"Resources","value":{"Limits":{"NanoCPUs":4000000000,"MemoryBytes":17179869184},"Reservations":{"NanoCPUs":100000000,"MemoryBytes":536870912,"GenericResources":[{"DiscreteResourceSpec":{"Kind":"VRAM","Value":1}}]}}}]'
+      target: production
+    image: simcore/services/dynamic/3d-viewer-gpu:3.0.5
