@@ -1,5 +1,7 @@
 # tools
-pyyaml
+bump-my-version
+pre-commit
+ruff
 
 # tests
 coverage

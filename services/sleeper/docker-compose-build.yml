@@ -1,4 +1,3 @@
-version: "3.7"
 services:
   sleeper:
     image: local/${DOCKER_IMAGE_NAME}:${DOCKER_BUILD_TARGET}
@@ -7,7 +6,8 @@ services:
       dockerfile: docker/custom/Dockerfile
       target: production
       args:
-        BASE_IMAGE: python:3.11-slim
+        BASE_IMAGE: python:${PYTHON_VERSION}-slim
+        PYTHON_VERSION: ${PYTHON_VERSION}
 
   sleeper-gpu:
     image: local/${DOCKER_IMAGE_NAME}-gpu:${DOCKER_BUILD_TARGET}
@@ -16,8 +16,11 @@ services:
       dockerfile: docker/custom/Dockerfile
       target: production
       args:
-        INSTALL_EXTRAS: true
-        BASE_IMAGE: nvidia/cuda:12.3.1-base-ubuntu22.04
+        # nvidia-smi/CUDA driver libs are injected by the NVIDIA Container Toolkit at
+        # runtime regardless of base image; no CUDA image needed since we never link
+        # against cudart/cuBLAS etc, so reuse the same slim image as sleeper.
+        BASE_IMAGE: python:${PYTHON_VERSION}-slim
+        PYTHON_VERSION: ${PYTHON_VERSION}
   sleeper-mpi:
     image: local/${DOCKER_IMAGE_NAME}-mpi:${DOCKER_BUILD_TARGET}
     build:
@@ -25,5 +28,5 @@ services:
       dockerfile: docker/custom/Dockerfile
       target: production
       args:
-        INSTALL_EXTRAS: true
-        BASE_IMAGE: nvidia/cuda:12.3.1-base-ubuntu22.04
+        BASE_IMAGE: python:${PYTHON_VERSION}-slim
+        PYTHON_VERSION: ${PYTHON_VERSION}

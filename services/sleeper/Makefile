@@ -19,6 +19,8 @@ export BUILD_DATE:=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 export DOCKER_REGISTRY ?= itisfoundation
 export DOCKER_IMAGE_NAME ?= sleeper
 export DOCKER_IMAGE_TAG ?= $(shell cat VERSION)
+export SLEEPER_VERSION := $(DOCKER_IMAGE_TAG)
+export PYTHON_VERSION ?= 3.14
 
 export COMPOSE_INPUT_DIR := ./validation/input
 export COMPOSE_OUTPUT_DIR := .tmp/output
@@ -33,21 +35,17 @@ LOCAL_REGISTRY = ${LOCAL_REGISTRY_HOST}/${COMP_ITIS_PATH}
 .PHONY: devenv
 .venv:
 	uv venv $@
-	# upgrading package managers
-	uv pip install --upgrade \
-		pip \
-		wheel \
-		setuptools
+
 
 requirements.txt: .venv requirements.in
 	# freezes requirements
-	uv pip compile --upgrade --build-isolation $(word 2, $^) --output-file $@ 
+	uv pip compile --upgrade --build-isolation $(word 2, $^) --output-file $@
 
 devenv: .venv requirements.txt ## create a python virtual environment with tools to dev, run and tests cookie-cutter
 	# installing extra tools
 	uv pip install -r  $(word 2,$^)
-	# your dev environment contains
-	@$</bin/pip list
+	# Installing pre-commit hooks in current .git repo
+	@$</bin/pre-commit install
 	@echo "To activate the virtual environment, run 'source $</bin/activate'"
 
 
@@ -56,11 +54,11 @@ devenv: .venv requirements.txt ## create a python virtual environment with tools
 metatada = metadata/metadata.yml
 service.cli/run: $(metatada)
 	# Updates adapter script from metadata in $<
-	@.venv/bin/python3 tools/run_creator.py --metadata $< --runscript $@
+	@uv run --script tools/run_creator.py --metadata $< --runscript $@
 
 docker-compose-meta.yml: $(metatada)
 	# Injects metadata from $< as labels
-	@.venv/bin/python3 tools/update_compose_labels.py --compose $@ --metadata $<
+	@uv run --script tools/update_compose_labels.py --compose $@ --metadata $<
 
 
 DOCKER_TARGET_PLATFORMS ?= linux/amd64
@@ -69,8 +67,13 @@ comma := ,
 define _docker_compose_build
 export DOCKER_BUILD_TARGET=$(if $(findstring -devel,$@),development,$(if $(findstring -cache,$@),cache,production)); \
 docker buildx bake  \
+	--set *.annotations+="org.opencontainers.image.created=$(BUILD_DATE)" \
+	--set *.annotations+="org.opencontainers.image.source=$(VCS_URL)" \
+	--set *.annotations+="org.opencontainers.image.revision=$(VCS_REF)" \
+	--set *.annotations+="org.opencontainers.image.vendor=IT'IS Foundation" \
+	--set *.annotations+="org.opencontainers.image.licenses=MIT" \
 	$(if $(findstring -devel,$@),,\
-	--set sleeper.platform=$(DOCKER_TARGET_PLATFORMS) \
+	--set *.platform=$(DOCKER_TARGET_PLATFORMS) \
 	)\
 	$(if $(findstring $(comma),$(DOCKER_TARGET_PLATFORMS)),,--set *.output="type=docker$(comma)push=false") \
 	$(if $(push),--file docker-bake.hcl,) --file docker-compose-build.yml \
@@ -81,9 +84,9 @@ endef
 
 
 
-# DOCKER ----------------------------------- 
+# DOCKER -----------------------------------
 .PHONY: build build-devel
-build build-devel: docker-compose-build.yml docker-compose-meta.yml service.cli/run ## builds images, -devel in development mode, -kit using docker buildkit, -x using docker buildX (if installed)
+build build-devel: docker-compose-build.yml docker-compose-meta.yml service.cli/run ## builds images, -devel in development mode
 	# building image local/${DOCKER_IMAGE_NAME}...
 	@$(call _docker_compose_build)
 
@@ -104,7 +107,7 @@ info-build: ## displays info on the built image
 
 
 
-# TESTS----------------------------------- 
+# TESTS-----------------------------------
 .PHONY: tests tests-unit tests-integration
 tests-unit tests-integration: ## runs integration and unit tests
 	@.venv/bin/pytest -vv \
@@ -118,43 +121,17 @@ tests-unit tests-integration: ## runs integration and unit tests
 tests: tests-unit tests-integration ## runs unit and integration tests
 
 
-# PUBLISHING ----------------------------------- 
+# PUBLISHING -----------------------------------
 define _bumpversion
 	# upgrades as $(subst $(1),,$@) version, commits and tags
-	@bump2version --verbose --list --config-file $(1) $(subst $(2),,$@)
+	@.venv/bin/bump-my-version bump --verbose --config-file $(1) $(subst $(2),,$@)
 endef
 
 .PHONY: version-service-patch version-service-minor version-service-major
-version-service-patch version-service-minor version-service-major: versioning/service.cfg ## kernel/service versioning as patch
+version-service-patch version-service-minor version-service-major: versioning/service.toml .venv ## kernel/service versioning as patch
 	@$(call _bumpversion,$<,version-service-)
 
-.PHONY: push push-force push-version push-latest pull-latest pull-version tag-latest tag-version
-tag-latest tag-version:
-	docker tag local/$(DOCKER_IMAGE_NAME):production $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
-	docker tag local/$(DOCKER_IMAGE_NAME)-gpu:production $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-gpu:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
-	docker tag local/$(DOCKER_IMAGE_NAME)-mpi:production $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-mpi:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
-
-version_valid = $(shell test $$(echo $(DOCKER_IMAGE_TAG) | cut --fields=1 --delimiter=.) -gt 0 > /dev/null && echo "image version is valid")
-version_exists = $(shell DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_TAG) > /dev/null && echo "image already exists on $(DOCKER_REGISTRY)")
-push push-force: ## pushes (resp. force) services to the registry if service not available in registry.
-	@$(if $(findstring force,$@),,\
-		$(if $(call version_valid),$(info version is valid), $(error $(DOCKER_IMAGE_TAG) is not a valid version (major>=1)))\
-		$(if $(call version_exists),$(error $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_TAG) already exists on $(DOCKER_REGISTRY)), $(info no version found on $(DOCKER_REGISTRY)))\
-		$(if $(call version_exists),$(error $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-gpu:$(DOCKER_IMAGE_TAG) already exists on $(DOCKER_REGISTRY)), $(info no version found on $(DOCKER_REGISTRY)))\
-		$(if $(call version_exists),$(error $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-mpi:$(DOCKER_IMAGE_TAG) already exists on $(DOCKER_REGISTRY)), $(info no version found on $(DOCKER_REGISTRY)))\
-	)
-	@$(MAKE) push-version;
-	@$(MAKE) push-latest;
-
-push-latest push-version: ## publish service to registry with latest/version tag
-	# pushing '$(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)'...
-	@$(MAKE) tag-$(subst push-,,$@)
-	@docker push $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
-	# pushed '$(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)'
-	@docker push $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-gpu:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
-	# pushed '$(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-gpu:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)'
-	@docker push $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-mpi:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
-	# pushed '$(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-mpi:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)'
+.PHONY: pull-latest pull-version
 pull-latest pull-version: ## pull service from registry
 	@docker pull $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
 	@docker pull $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)-gpu:$(if $(findstring version,$@),$(DOCKER_IMAGE_TAG),latest)
@@ -162,7 +139,7 @@ pull-latest pull-version: ## pull service from registry
 
 
 .PHONY: version-integration-patch version-integration-minor version-integration-major
-version-integration-patch version-integration-minor version-integration-major: versioning/integration.cfg ## integration versioning as patch (bug fixes not affecting API/handling), minor/major (backwards-compatible/INcompatible API changes)
+version-integration-patch version-integration-minor version-integration-major: versioning/integration.toml .venv ## integration versioning as patch (bug fixes not affecting API/handling), minor/major (backwards-compatible/INcompatible API changes)
 	@$(call _bumpversion,$<,version-integration-)
 
 
@@ -179,7 +156,7 @@ publish-1.0.0:	## push to local registry
 	docker tag itisfoundation/$(DOCKER_IMAGE_NAME):1.0.0 $(LOCAL_REGISTRY)/$(DOCKER_IMAGE_NAME):1.0.0
 	docker push $(LOCAL_REGISTRY)/$(DOCKER_IMAGE_NAME):1.0.0
 
-# DEVELOPMENT ---------------------------------------- 
+# DEVELOPMENT ----------------------------------------
 # NOTE: since using docker-compose would create the folders automatically but as root user, which is inconvenient
 define _clean_output_dirs
 	# cleaning output directory
@@ -196,12 +173,12 @@ docker-compose-configs = $(wildcard docker-compose.*yml)
 	# creating config for stack with 'local/$(DOCKER_IMAGE_NAME):$(patsubst .compose-%.yml,%,$@)' to $@
 	@export DOCKER_REGISTRY=local; \
 	export DOCKER_IMAGE_TAG=$(patsubst .compose-%.yml,%,$@); \
-	docker-compose -f docker-compose.yml $(if $(findstring -development,$@), -f docker-compose.devel.yml,) --log-level=ERROR config > $@
+	docker compose -f docker-compose.yml $(if $(findstring -development,$@), -f docker-compose.devel.yml,) config > $@
 
 define _docker_compose_cli
 	$(eval docker_compose_path=.compose-$(if $(findstring devel,$@),development,production).yml)
 	$(MAKE) $(docker_compose_path)
-	@docker-compose -f $(docker_compose_path) $(1)
+	@docker compose -f $(docker_compose_path) $(1)
 endef
 
 
@@ -215,7 +192,7 @@ shell shell-devel: $(COMPOSE_INPUT_DIR) $(COMPOSE_OUTPUT_DIR) down ## Starts a s
 	$(call _docker_compose_cli,run --service-ports $(APP_NAME) /bin/sh)
 
 down: .compose-development.yml ## stops the service
-	@docker-compose -f $< down
+	@docker compose -f $< down
 
 
 

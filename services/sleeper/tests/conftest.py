@@ -38,20 +38,6 @@ def src_dir(project_slug_dir: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
-def tools_dir(project_slug_dir: Path) -> Path:
-    tools_dir = project_slug_dir / "tools"
-    assert tools_dir.exists()
-    return tools_dir
-
-
-@pytest.fixture(scope="session")
-def docker_dir(project_slug_dir: Path) -> Path:
-    docker_dir = project_slug_dir / "docker"
-    assert docker_dir.exists()
-    return docker_dir
-
-
-@pytest.fixture(scope="session")
 def package_dir(src_dir: Path) -> Path:
     package_dir = src_dir / "name_of_the_project"
     assert package_dir.exists()
@@ -63,14 +49,3 @@ def metadata_file(project_slug_dir: Path) -> Path:
     metadata_file = project_slug_dir / "metadata" / "metadata.yml"
     assert metadata_file.exists()
     return metadata_file
-
-
-@pytest.fixture(scope="session")
-def git_root_dir() -> Path:
-    # finds where is .git
-    root_dir = current_dir
-    while root_dir.as_posix() != "/" and not Path(root_dir / ".git").exists():
-        root_dir = root_dir.parent
-    if root_dir.as_posix() == "/":
-        return None
-    return root_dir

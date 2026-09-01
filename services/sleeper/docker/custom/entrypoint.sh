@@ -39,6 +39,17 @@ fi
 echo "$INFO" "setting correct user id/group id..."
 HOST_USERID=$(stat --format=%u "${INPUT_FOLDER}")
 HOST_GROUPID=$(stat --format=%g "${INPUT_FOLDER}")
+
+if [ "$HOST_USERID" -ne 0 ]; then
+    # some base images (e.g. Ubuntu >=24.04) ship a pre-existing user at uid 1000:
+    # remove it first since it may also own the group we are about to resolve/reuse below
+    CONFLICTING_USER=$(getent passwd "$HOST_USERID" | cut --delimiter=: --fields=1)
+    if [ -n "$CONFLICTING_USER" ] && [ "$CONFLICTING_USER" != "$SC_USER_NAME" ]; then
+        echo "$WARNING" "Removing pre-existing user '$CONFLICTING_USER' occupying uid $HOST_USERID..."
+        deluser "$CONFLICTING_USER"
+    fi
+fi
+
 CONT_GROUPNAME=$(getent group "${HOST_GROUPID}" | cut --delimiter=: --fields=1)
 if [ "$HOST_USERID" -eq 0 ]; then
     echo "$WARNING" "Folder mounted owned by root user... adding $SC_USER_NAME to root..."
@@ -60,10 +71,9 @@ else
     usermod --uid "$HOST_USERID" --gid "$HOST_GROUPID" "$SC_USER_NAME"
 
     echo "$INFO" "Changing group properties of files around from $SC_USER_ID to group $CONT_GROUPNAME"
-    find / \( -path /proc -o -path /sys \) -prune -o -group "$SC_USER_ID" -exec chgrp --no-dereference "$CONT_GROUPNAME" {} \;
-    # change user property of files already around
+    fdfind --owner ":$SC_USER_ID" --exclude proc --exec-batch chgrp --no-dereference "$CONT_GROUPNAME" . '/'
     echo "$INFO" "Changing ownership properties of files around from $SC_USER_ID to group $CONT_GROUPNAME"
-    find / \( -path /proc -o -path /sys \) -prune -o -user "$SC_USER_ID" -exec chown --no-dereference "$SC_USER_NAME" {} \;
+    fdfind --owner "$SC_USER_ID:" --exclude proc --exec-batch chown --no-dereference "$SC_USER_NAME" . '/'
 fi
 
 echo "$INFO" "Starting $* ..."

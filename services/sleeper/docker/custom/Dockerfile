@@ -1,6 +1,10 @@
 # syntax=docker/dockerfile:1
-ARG BASE_IMAGE="nvidia/cuda:12.0.0-base-ubuntu22.04"
-FROM ${BASE_IMAGE} as base
+ARG BASE_IMAGE="python:3.14-slim"
+ARG PYTHON_VERSION=3.14
+
+FROM ghcr.io/astral-sh/uv:0.12.8 AS uv
+
+FROM ${BASE_IMAGE} AS base
 #
 #  USAGE:
 #     cd services/sleeper
@@ -40,27 +44,14 @@ RUN --mount=type=cache,target=/var/cache/apt,mode=0755,sharing=private \
     && apt-get install -y --no-install-recommends \
     jq \
     gosu \
+    fd-find \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     # verify that the binary works
     && gosu nobody true
 
-# Define an argument that dictates whether to run the installation commands
-ARG INSTALL_EXTRAS=false
-RUN --mount=type=cache,target=/var/cache/apt,mode=0755,sharing=private \
-    --mount=type=cache,target=/var/lib/apt,mode=0755,sharing=private \
-    if [ "$INSTALL_EXTRAS" = "true" ]; then \
-    set -eux \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*; \
-    fi
-
 # for ARM architecture this helps a lot VS building packages
-ENV PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
+ENV UV_EXTRA_INDEX_URL=https://www.piwheels.org/simple
 
 
 
@@ -70,23 +61,23 @@ ENV PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
 # + /build             WORKDIR
 #
 
-FROM base as build
+FROM base AS build
+
+ARG PYTHON_VERSION
 
 ENV SC_BUILD_TARGET=build
 
-# NOTE: install https://github.com/astral-sh/uv ultra-fast rust-based pip replacement
-RUN --mount=type=cache,mode=0755,target=/root/.cache/pip \
-    pip install uv~=0.1
+# NOTE: uv (https://github.com/astral-sh/uv) ultra-fast rust-based pip replacement,
+# copied from the official distroless image, pinned to a specific version
+# (see https://docs.astral.sh/uv/guides/integration/docker/#installing-uv)
+COPY --from=uv /uv /uvx /bin/
 
 # NOTE: python virtualenv is used here such that installed
-# packages may be moved to production image easily by copying the venv
-RUN uv venv "${VIRTUAL_ENV}"
-
-RUN --mount=type=cache,mode=0755,target=/root/.cache/pip \
-    uv pip install --upgrade  \
-    pip~=24.0  \
-    wheel \
-    setuptools
+# packages may be moved to production image easily by copying the venv.
+# uv reuses the base image's system Python (all 3 variants share the same
+# python:slim image, so no standalone interpreter download is ever needed).
+RUN --mount=type=cache,mode=0755,target=/root/.cache/uv \
+    uv venv --python "${PYTHON_VERSION}" "${VIRTUAL_ENV}"
 
 # ------------------------------------------------------------------------------------
 
@@ -109,7 +100,7 @@ RUN cp -R src/sleeper/* /build/bin
 #    + docker [${SC_USER_NAME}:${SC_USER_NAME}]
 #    + service.cli [${SC_USER_NAME}:${SC_USER_NAME}]
 #
-FROM base as production
+FROM base AS production
 
 ENV SC_BUILD_TARGET=production \
     SC_BOOT_MODE=production
